@@ -1,0 +1,23 @@
+{{- if .Values.magentoPersistenceClaim.enabled -}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ template "fullname" . }}-magento
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+  {{- if .Values.magentoPersistenceClaim.storageClass }}
+    volume.beta.kubernetes.io/storage-class: {{ .Values.magentoPersistenceClaim.storageClass | quote }}
+  {{- else }}
+    volume.alpha.kubernetes.io/storage-class: default
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .Values.magentoPersistenceClaim.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.magentoPersistenceClaim.size | quote }}
+{{- end -}}

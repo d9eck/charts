@@ -1,0 +1,111 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: MYSQL_HOST
+          value: {{ template "mariadb.fullname" . }}
+        - name: MARIADB_PORT_NUMBER
+          value: "3306"
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "mariadb.fullname" . }}
+              key: mariadb-root-password
+        - name: MYSQL_USER
+          value: {{ default "" .Values.magentoDatabaseUser | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "fullname" . }}
+              key: magento-mysql-password
+        - name: MYSQL_DATABASE
+          value: {{ default "" .Values.magentoDatabase | quote }} 
+        - name: MAGENTO_URL
+          value: {{ default "" .Values.magentoHost | quote }}
+        - name: MAGENTO_ADMIN_USERNAME
+          value: {{ default "" .Values.magentoUsername | quote }}
+        - name: MAGENTO_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "fullname" . }}
+              key: magento-password
+        - name: MAGENTO_ADMIN_EMAIL
+          value: {{ default "" .Values.magentoEmail | quote }}
+        - name: MAGENTO_ADMIN_URI
+          value: {{ default "" .Values.magentoAdminUri | quote }}
+        - name: MAGENTO_ADMIN_FIRSTNAME
+          value: {{ default "" .Values.magentoFirstName | quote }}
+        - name: MAGENTO_ADMIN_LASTNAME
+          value: {{ default "" .Values.magentoLastName | quote }}
+        - name: MAGENTO_MODE
+          value: {{ default "" .Values.magentoMode | quote }}     
+        ports:
+        - name: http
+          containerPort: 80
+#        - name: https
+#          containerPort: 443
+        livenessProbe:
+          httpGet:
+            path: /index.php
+            port: http
+            httpHeaders:
+            - name: Host
+              value: {{ include "host" . | quote }}
+          initialDelaySeconds: 420
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /index.php
+            port: http
+            httpHeaders:
+            - name: Host
+              value: {{ include "host" . | quote }}
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          periodSeconds: 5
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+        - name: magento-data
+          mountPath: /bitnami/magento
+        - name: apache-data
+          mountPath: /bitnami/apache
+      volumes:
+      - name: magento-data
+      {{- if .Values.magentoPersistanceClaim.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ template "fullname" . }}-magento
+      {{- else }}
+        gcePersistentDisk:
+          pdName: magento-data
+          fsType: ext4
+      {{- end }}
+      - name: apache-data
+      {{- if .Values.apachePersistenceClaim.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ template "fullname" . }}-apache
+      {{- else }}
+        gcePersistentDisk:
+          pdName: apache-data
+          fsType: ext4
+      {{- end }}
+{{- end -}}
